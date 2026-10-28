@@ -67,7 +67,7 @@ Open it at **http://localhost:3000/d/microservices-overview** (or **Dashboards �
 | **Service Status** | UP (green) / DOWN (red) for each service, based on whether Prometheus could scrape it | `up{job=~"user-service\|order-service\|payment-service"}` |
 | **Request Rate per Service** | Requests per second handled by each service | `sum by (service) (rate(http_requests_total[1m]))` |
 | **Error Rate (%)** | Percentage of requests that returned a 5xx status, per service. Shows 0% when there are no errors | 5xx rate / total rate × 100 |
-| **P95 Latency per Service** | 95th percentile response time per service | `histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[1m])))` |
+| **P95 Latency per Service** | 95th percentile response time per service, in milliseconds | `histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[1m]))) * 1000` |
 | **Average Response Time per Service** | Mean response time across requests per service, in milliseconds; use alongside P95/P99 to see whether tail latency is much higher than the average | `(sum by (service) (rate(http_request_duration_seconds_sum[1m])) / sum by (service) (rate(http_request_duration_seconds_count[1m]))) * 1000` |
 | **P99 Latency per Service** | 99th-percentile response time per service, in milliseconds; roughly 99% of requests complete at or below this value, highlighting slow-tail behavior | `histogram_quantile(0.99, sum by (service, le) (rate(http_request_duration_seconds_bucket[1m]))) * 1000` |
 | **Request Success Rate (%)** | Percentage of requests that returned a 2xx status, per service (red below 95%, yellow below 99%, green at 99% and above). 4xx and 5xx both count as unsuccessful. Services with no traffic in the last minute show no line | 2xx rate / total rate × 100 |
@@ -109,9 +109,12 @@ Allow Prometheus time to scrape the requests and populate the 1-minute rate wind
 Prometheus loads alert rules from `monitoring/prometheus/alerts.yml` (mounted at `/etc/prometheus/alerts.yml`) and sends firing alerts to Alertmanager.
 
 - `HighErrorRate`: fires when a service's 5xx rate stays above 5% (with more than 0.1 req/s) for 1 minute.
+- `HighLatency`: fires (severity `warning`) when a service's P95 response latency exceeds 1 second over a 5-minute rate window, with more than 0.1 non-probe requests per second, for 2 minutes. The 1-second threshold is in seconds to match the histogram's units; adjust the `> 1` comparison in `monitoring/prometheus/alerts.yml` to change it. Requests to `/load-test`, `/health`, and `/metrics` are excluded from both the latency calculation and traffic guard.
 - `ServiceDown`: fires (severity `critical`) when Prometheus cannot scrape a `*-service` target (`up == 0`) for 1 minute.
 
 Check that the rule is loaded at http://localhost:9090/rules. To validate the files without Docker: `promtool check rules monitoring/prometheus/alerts.yml`.
+
+To exercise the rule, generate sustained traffic to a normal service endpoint whose P95 exceeds 1 second. It must exceed the threshold over the 5-minute rate window and remain active for 2 minutes; ordinary fast demo endpoints may not cause it to fire. For a local-only verification, temporarily lower the `> 1` threshold below the observed P95, generate at least 0.1 requests per second to a normal endpoint for several minutes, then restore the threshold. Confirm the alert's pending/firing state at http://localhost:9090/alerts. The `/load-test` endpoint is intentionally excluded, so its simulated delay cannot trigger this operational alert.
 
 ## Service uptime
 
@@ -156,8 +159,8 @@ sum by (service) (rate(http_requests_total{status=~"4..|5.."}[5m]))
   /
 sum by (service) (rate(http_requests_total[5m]))
 
-# 95th percentile latency per service
-histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[5m])))
+# 95th percentile latency in milliseconds, per service
+histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[5m]))) * 1000
 
 # Average response time in milliseconds, per service
 (sum by (service) (rate(http_request_duration_seconds_sum[1m])) / sum by (service) (rate(http_request_duration_seconds_count[1m]))) * 1000

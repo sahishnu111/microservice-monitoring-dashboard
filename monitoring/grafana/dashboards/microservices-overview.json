@@ -237,7 +237,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service) (rate(http_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum by (service) (rate(http_requests_total[1m])), 1e-9) * 100\nor\nsum by (service) (rate(http_requests_total[1m])) * 0",
+          "expr": "sum by (service) (rate(http_requests_total{status=~\"5..\",endpoint!=\"/load-test\"}[1m])) / clamp_min(sum by (service) (rate(http_requests_total{endpoint!=\"/load-test\"}[1m])), 1e-9) * 100\nor\nsum by (service) (rate(http_requests_total{endpoint!=\"/load-test\"}[1m])) * 0",
           "legendFormat": "{{service}}",
           "range": true
         }
@@ -260,7 +260,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "ms",
           "min": 0,
           "custom": {
             "lineWidth": 2,
@@ -292,7 +292,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[1m])))",
+          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[1m]))) * 1000",
           "legendFormat": "{{service}}",
           "range": true
         }
@@ -368,7 +368,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "100 * sum by (service) (rate(http_requests_total{status=~\"2..\"}[1m])) / (sum by (service) (rate(http_requests_total[1m])) > 0)\nor\n(sum by (service) (rate(http_requests_total[1m])) > 0) * 0",
+          "expr": "100 * sum by (service) (rate(http_requests_total{status=~\"2..\",endpoint!=\"/load-test\"}[1m])) / (sum by (service) (rate(http_requests_total{endpoint!=\"/load-test\"}[1m])) > 0)\nor\n(sum by (service) (rate(http_requests_total{endpoint!=\"/load-test\"}[1m])) > 0) * 0",
           "legendFormat": "{{service}}",
           "range": true
         }
