@@ -1,0 +1,45 @@
+# Run: promtool test rules monitoring/prometheus/tests/slo-rules.test.yml
+rule_files:
+  - ../slo-rules.yml
+evaluation_interval: 1m
+tests:
+  # order-service: 60 req/min, 30% are 5xx -> availability 0.7, alert fires.
+  # user-service: 60 req/min, no errors -> availability 1, no alert.
+  # payment-service: no traffic -> availability falls back to 1.
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{service="order-service",endpoint="/load-test",method="GET",status="200"}'
+        values: '0+42x120'
+      - series: 'http_requests_total{service="order-service",endpoint="/load-test",method="GET",status="500"}'
+        values: '0+18x120'
+      - series: 'http_requests_total{service="user-service",endpoint="/users",method="GET",status="200"}'
+        values: '0+60x120'
+      - series: 'http_requests_total{service="payment-service",endpoint="/health",method="GET",status="200"}'
+        values: '0x120'
+      - series: 'up{service="order-service",job="order-service"}'
+        values: '1x120'
+    promql_expr_test:
+      - expr: service:availability:ratio_rate5m
+        eval_time: 30m
+        exp_samples:
+          - labels: 'service:availability:ratio_rate5m{service="order-service"}'
+            value: 0.7
+          - labels: 'service:availability:ratio_rate5m{service="user-service"}'
+            value: 1
+          - labels: 'service:availability:ratio_rate5m{service="payment-service"}'
+            value: 1
+      - expr: service:slo_target:ratio
+        eval_time: 10m
+        exp_samples:
+          - labels: 'service:slo_target:ratio{service="order-service"}'
+            value: 0.995
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ErrorBudgetBurnHigh
+        exp_alerts:
+          - exp_labels:
+              service: order-service
+              severity: critical
+            exp_annotations:
+              summary: "Error budget burning fast in order-service"
+              description: "order-service is burning its 99.5% availability error budget more than 14.4x faster than sustainable (5m and 1h windows)."

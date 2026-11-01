@@ -1,0 +1,49 @@
+# SLO recording rules: availability SLO of 99.5% per service.
+# Availability = 1 - (5xx requests / all requests). /metrics scrapes are excluded.
+# /load-test IS included on purpose so simulated 500s can be used to demo budget burn.
+# Idle services (no traffic) fall back to 1 (fully available) instead of no data.
+groups:
+  - name: slo-recording
+    rules:
+      - record: service:availability:ratio_rate5m
+        expr: |
+          (
+            1 - (
+              sum by (service) (rate(http_requests_total{status=~"5..", endpoint!="/metrics"}[5m]))
+              /
+              (sum by (service) (rate(http_requests_total{endpoint!="/metrics"}[5m])) > 0)
+            )
+          )
+          or
+          (sum by (service) (rate(http_requests_total{endpoint!="/metrics"}[5m])) * 0 + 1)
+      - record: service:availability:ratio_rate1h
+        expr: |
+          (
+            1 - (
+              sum by (service) (rate(http_requests_total{status=~"5..", endpoint!="/metrics"}[1h]))
+              /
+              (sum by (service) (rate(http_requests_total{endpoint!="/metrics"}[1h])) > 0)
+            )
+          )
+          or
+          (sum by (service) (rate(http_requests_total{endpoint!="/metrics"}[1h])) * 0 + 1)
+      - record: service:slo_target:ratio
+        expr: max by (service) (up{service!=""}) * 0 + 0.995
+
+  - name: slo-alerts
+    rules:
+      # Fast burn (Google SRE multi-window): burning budget 14.4x faster than allowed,
+      # on both the 5m and 1h windows, with a minimum-traffic guard.
+      - alert: ErrorBudgetBurnHigh
+        expr: |
+          (1 - service:availability:ratio_rate5m) > (14.4 * (1 - 0.995))
+          and
+          (1 - service:availability:ratio_rate1h) > (14.4 * (1 - 0.995))
+          and
+          sum by (service) (rate(http_requests_total{endpoint!="/metrics"}[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error budget burning fast in {{ $labels.service }}"
+          description: "{{ $labels.service }} is burning its 99.5% availability error budget more than 14.4x faster than sustainable (5m and 1h windows)."
