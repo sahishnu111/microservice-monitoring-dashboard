@@ -232,3 +232,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8001
 ```
+
+## SLO & Error Budget
+
+Each service has a 99.5% availability SLO. Recording rules in `monitoring/prometheus/slo-rules.yml` work out availability per service. The `ErrorBudgetBurnHigh` alert fires on a fast (14.4x) budget burn. The **SLO & Error Budget** Grafana dashboard shows current availability, the error budget left over the selected time range, and the burn rate. To demo it, send traffic to `/load-test?error_rate=0.3` on order-service. See [docs/slo-error-budget.md](docs/slo-error-budget.md).
