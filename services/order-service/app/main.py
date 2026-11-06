@@ -145,7 +145,7 @@ class OrderCreate(BaseModel):
 @app.post("/orders", status_code=201)
 def create_order(payload: OrderCreate):
     order = {
-        "id": max(o["id"] for o in ORDERS) + 1,
+        "id": max((o["id"] for o in ORDERS), default=100) + 1,
         "user_id": payload.user_id,
         "items": [],
         "total": payload.total,

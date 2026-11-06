@@ -22,3 +22,18 @@ done
 
 ## Dashboard
 Grafana, **Business Metrics & Load Test**: http://localhost:3000/d/business-metrics
+
+
+## Operational dashboards vs demo traffic
+Simulated `/load-test` failures are excluded from the Microservices Overview **Error Rate** / **Success Rate** panels and from the `HighErrorRate` / `HighLatency` alerts (`endpoint!="/load-test"`). They still feed the **Business Metrics & Load Test** dashboard and the SLO/error-budget demo on purpose.
+
+## Tests
+From `services/order-service`:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -q
+```
+
+`POST /orders` uses `max(..., default=100) + 1` so an empty in-memory list does not crash.
